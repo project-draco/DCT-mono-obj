@@ -7,11 +7,13 @@ Module Dependency Graph (MDG) from standard input
 ## Output
 Clustered graph in DOT format on standard output.
 
-## Running
+## Compile
 ```$ go mod init lns```
 
 ```$ go get -u github.com/exascience/pargo/parallel```
 
 ```$ go build```
+
+## Running
 
 ```$ ./lns < software.mdg > software.dot```
