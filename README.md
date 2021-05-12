@@ -5,7 +5,7 @@ Draco Clustering Tool - Mono Objective algorithms
 Module Dependency Graph (MDG) from standard input
 
 ## Output
-clustered graph in DOT format on standard output.
+Clustered graph in DOT format on standard output.
 
 ## Running
 ```$ go mod init lns```
