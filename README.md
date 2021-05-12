@@ -9,6 +9,9 @@ clustered graph in DOT format on standard output.
 
 ## Running
 ```$ go mod init lns```
+
 ```$ go get -u github.com/exascience/pargo/parallel```
+
 ```$ go build```
+
 ```$ ./lns < software.mdg > software.dot```
