@@ -42,7 +42,9 @@ func calculateMQ(clustersArr []clusterInfo) float64 {
 		if clustersArr[i].numberOfVertexes > 0 {
 			currentintraEdgeWeightSum := clustersArr[i].IntraEdgeWeightSum
 			currentinterEdgeWeightSum := clustersArr[i].InterEdgeWeightSum
-			MQ += 2*currentintraEdgeWeightSum / ((2*currentintraEdgeWeightSum) + currentinterEdgeWeightSum)
+			if currentintraEdgeWeightSum > 0.0 {
+				MQ += 2.0*currentintraEdgeWeightSum / ((2*currentintraEdgeWeightSum) + currentinterEdgeWeightSum)
+			}
 		}
 	}},)
 	return MQ
@@ -90,7 +92,7 @@ func CreateNewCluster (clustersArr []clusterInfo) int{
 }
 
 func calculateCF (cluster clusterInfo) float64 {
-	return (2*cluster.IntraEdgeWeightSum) / ((2*cluster.IntraEdgeWeightSum) + cluster.InterEdgeWeightSum)
+	return (2.0*cluster.IntraEdgeWeightSum) / ((2*cluster.IntraEdgeWeightSum) + cluster.InterEdgeWeightSum)
 }
 
 func writeOutputFile(vertexArr []vertexInfo, names map[int]string, graphArr []edgeWithWeight) {
@@ -197,6 +199,7 @@ func main() {
 	numberOfClusters := len(vertexArr)
 	bestGlobalMQ := -999999.0
 
+
 	copyClustersArr(clustersArrCopy, clustersArr)
 	copyVertexArr(vertexArrCopy, vertexArr)
 
@@ -266,10 +269,7 @@ func main() {
 		}
 	}
 
-	// fmt.Fprintln(os.Stderr, bestGlobalMQ)
-	// fmt.Fprintln(os.Stderr, time.Since(start).Round(100*time.Millisecond))
-
-	destroyArr := make([]int, len(vertexArr)/10)
+	destroyArr := make([]int, len(vertexArr)/5)
 	rand.Seed(time.Now().Unix())
 
 	no_improvement_threshold := 1000
@@ -280,36 +280,32 @@ func main() {
 		copyVertexArr(vertexArrCopy, vertexArr)
 
 		// Destructive Random (DR) with Degree = 0.1
-		destroyArr = rand.Perm(len(vertexArrCopy))[0:len(vertexArrCopy)/10]
+		destroyArr = rand.Perm(len(vertexArrCopy))[0:len(vertexArrCopy)/5]
+
 		// For every to be destroyed vertex
 		for i:=0; i < len(destroyArr); i++{
 			// For every neighbor of the destroyed vertex 
 			for j := vertexArrCopy[destroyArr[i]].start; j <  vertexArrCopy[destroyArr[i]].start + vertexArrCopy[destroyArr[i]].size; j++ {
-				// Update intra and inter edge weight sum
+				// Update intra edge weight sum
 				if vertexArrCopy[graphArr[j].edge.destination].cluster == vertexArrCopy[destroyArr[i]].cluster {
 					clustersArrCopy[vertexArrCopy[destroyArr[i]].cluster].IntraEdgeWeightSum -= graphArr[j].weight
+					clustersArrCopy[vertexArrCopy[destroyArr[i]].cluster].InterEdgeWeightSum += graphArr[j].weight
 				} else {
 					clustersArrCopy[vertexArrCopy[destroyArr[i]].cluster].InterEdgeWeightSum -= graphArr[j].weight
-					if vertexArrCopy[graphArr[j].edge.destination].cluster != -1 {
-						clustersArrCopy[vertexArrCopy[graphArr[j].edge.destination].cluster].InterEdgeWeightSum -= graphArr[j].weight
-					}
 				}
 			}
 			clustersArrCopy[vertexArrCopy[destroyArr[i]].cluster].numberOfVertexes--
 			vertexArrCopy[destroyArr[i]].cluster = -1
 		}
 
+
 		// Repair Greedy Best Improvement Random (RGBIR):
 		for i:=0; i < len(destroyArr); i++{
-			// fmt.Fprintln(os.Stderr, i)
 			index_of_new_cluster := CreateNewCluster(clustersArrCopy)
 			// Put the current destroyed vertex inside new cluster
 			for j := vertexArrCopy[destroyArr[i]].start; j <  vertexArrCopy[destroyArr[i]].start + vertexArrCopy[destroyArr[i]].size; j++ {
-				if vertexArrCopy[graphArr[j].edge.destination].cluster != -1 {
-					// Update inter edge weight sum
-					clustersArrCopy[index_of_new_cluster].InterEdgeWeightSum += graphArr[j].weight
-					clustersArrCopy[vertexArrCopy[graphArr[j].edge.destination].cluster].InterEdgeWeightSum += graphArr[j].weight
-				}
+				// Update inter edge weight sum
+				clustersArrCopy[index_of_new_cluster].InterEdgeWeightSum += graphArr[j].weight
 			}
 			clustersArrCopy[index_of_new_cluster].numberOfVertexes++
 			vertexArrCopy[destroyArr[i]].cluster = index_of_new_cluster
@@ -324,43 +320,43 @@ func main() {
 				// For all other clusters, but the new cluster
 				if vertexArrCopy[destroyArr[i]].cluster != j && clustersArrCopy[j].numberOfVertexes > 0 {
 					initialCFs := calculateCF(clustersArrCopy[vertexArrCopy[destroyArr[i]].cluster]) + calculateCF(clustersArrCopy[j])
-					var mergeClusterCopy clusterInfo
-					copyCluster(mergeClusterCopy, clustersArrCopy[j])
+					mergeClusterCopy := clustersArrCopy[j]
+					mergeClusterCopy.numberOfVertexes++
+
 					// For every neighbor of the unique vertex inside the new cluster
 					for p := vertexArrCopy[destroyArr[i]].start; p < vertexArrCopy[destroyArr[i]].start + vertexArrCopy[destroyArr[i]].size; p++ {
-						if vertexArrCopy[graphArr[p].edge.destination].cluster != -1 {
-							if vertexArrCopy[graphArr[p].edge.destination].cluster == j {
-								mergeClusterCopy.IntraEdgeWeightSum += graphArr[p].weight
-								mergeClusterCopy.InterEdgeWeightSum -= graphArr[p].weight
-							} else {
-								mergeClusterCopy.InterEdgeWeightSum += graphArr[p].weight
-							}
+						if vertexArrCopy[graphArr[p].edge.destination].cluster == j {
+							mergeClusterCopy.IntraEdgeWeightSum += graphArr[p].weight
+							mergeClusterCopy.InterEdgeWeightSum -= 2*(graphArr[p].weight)
 						}
 					}
+					mergeClusterCopy.InterEdgeWeightSum += clustersArrCopy[index_of_new_cluster].InterEdgeWeightSum
+
 					// Calculate merge MQ gain
 					finalCFs := calculateCF(mergeClusterCopy)
 					gainCFs := finalCFs - initialCFs
-					if(gainCFs > bestGainCFs){
+
+					if gainCFs > bestGainCFs {
 						mergeClusterBool = true
 						bestGainCFs = gainCFs
-						copyCluster(mergeCluster, mergeClusterCopy)
+						mergeCluster = mergeClusterCopy
 						mergeClusterIndex = j
 					}
 				}
 			}},)
 			// Merge new cluster to best cluster if necessary
-			if(mergeClusterBool){
+			if mergeClusterBool {
 				clustersArrCopy[vertexArrCopy[destroyArr[i]].cluster].numberOfVertexes--
 				clustersArrCopy[mergeClusterIndex].numberOfVertexes++
 				vertexArrCopy[destroyArr[i]].cluster = mergeClusterIndex
-				copyCluster(clustersArrCopy[mergeClusterIndex], mergeCluster)
+				clustersArrCopy[mergeClusterIndex] = mergeCluster
 			}
 		}
 
 		currentIterGlobalMQ := calculateMQ(clustersArrCopy)
 
 		if currentIterGlobalMQ > bestGlobalMQ {
-			fmt.Fprintln(os.Stderr, "iter change", bestGlobalMQ, currentIterGlobalMQ)
+			// fmt.Fprintln(os.Stderr, "iter change", bestGlobalMQ, currentIterGlobalMQ)
 			bestGlobalMQ = currentIterGlobalMQ
 			copyClustersArr(clustersArr, clustersArrCopy)
 			copyVertexArr(vertexArr, vertexArrCopy)
